@@ -425,7 +425,12 @@ namespace UploadSalesApplication
                     errorList.Add(new ErrorField(row, "Date", data[row, Properties.Settings.Default.col_date].ToString()));
                     valid = false;
                 }
-           } 
+           }
+            else if (DateTime.Parse(data[row, Properties.Settings.Default.col_date].ToString()) > System.DateTime.Now)
+            {
+                errorList.Add(new ErrorField(row, "Date", data[row, Properties.Settings.Default.col_date].ToString()));
+                valid = false;
+            }
             else
             {
                 date = DateTime.FromOADate(date_double);
