@@ -109,8 +109,6 @@ namespace UploadSalesApplication
             }
         }
 
-        
-
         public static String[] getExcelFiles(string source_folder)
         {
             var files = Directory.EnumerateFiles(source_folder, "*.*", SearchOption.TopDirectoryOnly)
@@ -158,7 +156,6 @@ namespace UploadSalesApplication
             }
         }
 
-
         private void processSalesUploadBySBS(SbsSetting sbsSetting)
         {
             bool success = true;
@@ -177,6 +174,10 @@ namespace UploadSalesApplication
                 try
                 {
                     object[,] data = loadExcelData(input_file_path);
+
+                   // int dataCount = data.Length;
+                   // uploadSalesInterface.updateMessage("dataCount Count : " + dataCount, true);
+
                     if (data == null)
                     {
                         continue;
@@ -185,14 +186,16 @@ namespace UploadSalesApplication
                     HashSet<string> invoiceItemKey = loadData(data, sbsSetting.sbs_no.ToString());
                     data = null; //release from memory
 
+                    // int invoiceItemKeyCount = invoiceItemKey.Count;
+                    //uploadSalesInterface.updateMessage("InvoiceitemKey Count : " + invoiceItemKeyCount, true);
+
                     if (errorList.Count > 0)
                     {
-                        uploadSalesInterface.updateMessage("Error: empty fields in excel file. Run aborted.\n", true);
+                        uploadSalesInterface.updateMessage("Error: invalid fields in excel file. Run aborted.\n", true);
                         LogWriter.writeErrorLog(errorList, sbsSetting.error);
                         return;
                     }
 
-                    
                     uploadSalesInterface.updateMessage("Fetching item details from database\n", true);
 
                     items = new Hashtable();
@@ -202,10 +205,12 @@ namespace UploadSalesApplication
                         string message = string.Format("Fetching item details from database\nTotal ALU: {0} \t Found: {1} \t Error: {2}", invoiceItemKey.Count, items.Count, errorList.Count);
                         uploadSalesInterface.updateMessage(message, false);
                     }
-                    int i = invoices.Count;
+                  //  int i = invoices.Count;
+                   // uploadSalesInterface.updateMessage("Invoice Count : " + i, true);
+
                     if (errorList.Count > 0)
                     {
-                        uploadSalesInterface.updateMessage("Error: invalid fields in excel file. Run aborted.\n", true);
+                        uploadSalesInterface.updateMessage("Error: invalid ALU/UPC in excel file. Run aborted.\n", true);
                         LogWriter.writeErrorLog(errorList, sbsSetting.error);
                         return;
                     }
@@ -316,7 +321,6 @@ namespace UploadSalesApplication
             }
         }
     
-
         private HashSet<string> loadData(object[,] data, string sbs_no)
         {
             Dictionary<string, int> stores = DBHandler.loadStores(Convert.ToInt32(sbs_no), errorList);
@@ -392,6 +396,8 @@ namespace UploadSalesApplication
 
         private bool addInvoiceItem(object[,] data, int row, Dictionary<string, int> storeDictionary, string sbs_no)
         {
+            SbsSetting sbsSetting = sbsControl.getSbsSettings(int.Parse(sbs_no));
+
             bool valid = true;
 
             string alu = getALUString(data, row);
@@ -399,19 +405,27 @@ namespace UploadSalesApplication
             string store_no = data[row, Properties.Settings.Default.col_store_no].ToString();
             string receipt_no = data[row, Properties.Settings.Default.col_receipt_no].ToString();
 
+            /*Check col_qty*/
             int qty;
             if (!Int32.TryParse(data[row, Properties.Settings.Default.col_qty].ToString(), out qty))
             {
                 errorList.Add(new ErrorField(row, "Qty", data[row, Properties.Settings.Default.col_qty].ToString()));
                 valid = false;
             }
+            if (qty == 0)
+            {
+                valid = false;
+            }
+
+            /*Check col_total_price*/
             decimal total;
             if (!Decimal.TryParse(data[row, Properties.Settings.Default.col_total_price].ToString(), out total))
             {
                 errorList.Add(new ErrorField(row, "Total Price", data[row, Properties.Settings.Default.col_total_price].ToString()));
                 valid = false;
             }
-            
+
+            /*Check col_date*/
             double date_double;
             DateTime date = System.DateTime.Now;
             if (!Double.TryParse(data[row, Properties.Settings.Default.col_date].ToString(), out date_double))
@@ -425,16 +439,20 @@ namespace UploadSalesApplication
                     errorList.Add(new ErrorField(row, "Date", data[row, Properties.Settings.Default.col_date].ToString()));
                     valid = false;
                 }
-           }
-            else if (DateTime.Parse(data[row, Properties.Settings.Default.col_date].ToString()) > System.DateTime.Now)
-            {
-                errorList.Add(new ErrorField(row, "Date", data[row, Properties.Settings.Default.col_date].ToString()));
-                valid = false;
-            }
+           }          
             else
             {
                 date = DateTime.FromOADate(date_double);
+                // uploadSalesInterface.updateMessage("date_double : " + date, true);
+
+                if (date > System.DateTime.Now)
+                {
+                    errorList.Add(new ErrorField(row, "Date", "" + date));
+                    valid = false;
+                }
             }
+
+            /*Check col_store_no*/
             if (storeDictionary.ContainsKey(store_no))
             {
                 store_no = storeDictionary[store_no] + "";
@@ -444,10 +462,8 @@ namespace UploadSalesApplication
                 errorList.Add(new ErrorField(row, "Store", data[row, Properties.Settings.Default.col_store_no].ToString()));
                 valid = false;
             }
-            if (qty == 0)
-            {
-                valid = false;
-            }
+
+            /*All columns are valid, proceed to add Invoice Item*/
             if (valid)
             {
                 addInvoiceItem(alu, upc, sbs_no, store_no, receipt_no, qty, total, date);

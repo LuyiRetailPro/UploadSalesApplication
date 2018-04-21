@@ -45,6 +45,8 @@ namespace UploadSalesApplication
             modifiedby_empl_name="SYSADMIN">
             eft_invc_no="120" so_no="" so_sid=""
             */
+
+
             XmlElement e_invoice = doc.CreateElement(string.Empty, "INVOICE", string.Empty);
             e_invoice.SetAttribute("invc_sid", generate_SID(invoice));
             e_invoice.SetAttribute("sbs_no", invoice.sbs_no);
